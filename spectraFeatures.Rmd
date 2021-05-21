@@ -13,30 +13,7 @@ output: html_document
 Experimental procedure to harmonize SOC data (DC, WCt, and WCc) from the southern Brazilian spectral library considering its geographic, topography, pedologic, and spectra data.
 
 ```{r}
-#library(devtools)
-# install the soilspec package from GitHub
-#devtools::install_github("AlexandreWadoux/soilspec", force = FALSE)
-
-myPackages <- c("SDMTools", "tripack", "resemble", "splancs", "sp")
-notInstalled <- myPackages[!(myPackages %in% installed.packages()[ , "Package"])]
-if(length(notInstalled)) install.packages(notInstalled)
-
-
-myPackages <- c("asdreader", "RColorBrewer","wavethresh", "MASS",
-"pracma", "plyr", "signal", "SDMTools",
-"tripack", "resemble", "splancs", "sp",
-"scatterplot3d", "prospectr", "RcppArmadillo", "matrixStats",
-"clhs", "viridis", "viridisLite", "caret",
-"ggplot2", "soiltexture","randomForest","pls",
-"Cubist", "lattice", "robustbase", "mvoutlier",
-"devtools")
-# define which packages are not installed in the current computer
-notInstalled <- myPackages[!(myPackages%in%installed.packages()[ , "Package"])]
-# install the missing packages
-if(length(notInstalled)>0) install.packages(notInstalled)
-
 library(magrittr)
-#library(soilspec)
 ```
 
 # Feature Selection
@@ -520,6 +497,6 @@ indexs <- do.call(cbind, index)
 
 # EXPORT
 ```{r}
-index <-cbind(data[1:26], rAbundMineral, indexs)
+index <-cbind(data[1:40], rAbundMineral, indexs)
 write.csv(index, "data/data.csv")
 ```
