@@ -1,0 +1,895 @@
+---
+title: "main"
+author: "Horst-Heinen"
+date: "20/05/2021"
+output: html_document
+---
+
+# SET COVARIATES
+
+# IMPROVING DATA COMPATIBILITY ON SPECTRAL LIBRARIES: SOIL ORGANIC CARBON PEDOTRANSFER FUNCTIONS FOR SOUTHERN BRAZIL
+
+## Objetive
+
+Experimental procedure to harmonize SOC data (DC, WCt, and WCc) from the southern Brazilian spectral library considering its geographic, topography, pedologic, and spectra data.
+
+
+```{r}
+library(raster)
+library(sp)
+library(tidyr)
+library(magrittr)
+library(factoextra)
+```
+
+
+### Soil data
+The dataset is stored in the folder `data`.
+
+```{r}
+data <- read.csv("../data/dataFinal.csv", sep = ",")
+proj4string(data) <- CRS("+proj=longlat +datum=WGS84")
+```
+
+### Figure 1
+
+Empirical probability density of carbon (A, C, and E) acontent in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+Key characteristics of the soil samples and its site, such as the clay content (B), land use/land cover (D), and parental material (F).
+
+```{r, eval = FALSE}
+l <- layer(
+  panel.mathdensity(
+    dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
+
+p1 <- histogram(
+  ~ DC, data, 
+  xlab = expression('SOC, Dry combustion [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p2 <- histogram(
+  ~ WCt, data, 
+  xlab = expression('SOC,  Wet digestion + colorimetry [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "B)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+  
+
+p3 <- histogram(
+  ~ WCc, data, 
+  xlab = expression('SOC, Wet digestion + titration [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "C)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+
+p4 <- histogram(
+  ~ clay, data, xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "D)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p5 <- barchart(
+  data$geology, xlab = 'Parental material', ylab = 'Percent of total', horizontal = FALSE, 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(h = -1, v = 0)
+    lattice::panel.barchart(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "E)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+p6 <- barchart(
+  data$landuse, xlab = 'Land use or land cover', ylab = 'Percent of total', horizontal = FALSE, 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(h = -1, v = 0)
+    lattice::panel.barchart(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "F)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+png("../result/hist-soil-samples.png")
+gridExtra::grid.arrange(p1, p4, p2, p5, p3, p6,  ncol = 2)
+dev.off()
+```
+
+### Covariates
+
+#### Spectrais
+
+```{r}
+specMinerals <- data[28:30]
+specOrg <- data[31:54]
+specWater <- data[55:length(data)]
+```
+
+
+#### Coordinates
+
+```{r}
+wgs84utm22s <- sp::CRS('+proj=utm +zone=22 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+sirgas2000 <- sp::CRS('+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs')
+#sp::spTransform(wgs84utm22s)
+```
+##### topogáfica:
+
+Relação indireta -> influencia na pedogênese, mineralogia.
+variáveis topográficas + espectro ajudam a explicar a variância dos carbono - Artigo GEODERMA 2021.
+Pode se relacionar com o material de origem, formação de argilominerais, óxidos de ferro, e podem influenciar diretamente na recuperação de COS na amostra.
+SC - estrutura de microagregados é bem diferente.
+
+TWI
+```{r}
+TWI <- raster::raster("../data/raster/twi/sTWI.tif")
+```
+
+
+### Land use and land cover (LULC)
+https://code.earthengine.google.com/?accept_repo=users/mapbiomas/user-toolkit 
+
+MAPBIOMAS
+```{r}
+lulc2009 <- raster::raster("../data/raster/lulc/lulc2009_wgs84.tif")
+lulc2013 <- raster::raster("../data/raster/lulc/lulc2013_wgs84.tif")
+lulc2016 <- raster::raster("../data/raster/lulc/lulc2016_wgs84.tif")
+```
+
+`land-use`
+classified using FAO guidelines for soil description. The following codes are used:
+
+* FS (Floresta): Semi-deciduous forest (vegetation slightly disturbed)
+* U (Vegetação secundária): Not used and not managed, vegetation strongly disturbed by clearing, burning,
+  ploughing (secondary vegetation, mix of semi-deciduous shrubs and tall grassland)
+* AA (Agricultura): Annual field cropping
+* FP (Silvicultura): Plantation forestry
+* HE (Campo nativo): Animal husbandry (extensive grazing)
+
+### Climate
+
+WorldClim
+```{r}
+l = list.files(path = '../data/raster/climate/select', pattern = glob2rx('*.tif'), full.names = TRUE)
+l <- lapply(l, raster)
+lim = raster::stack(l)
+proj4string(lim) <- CRS("+proj=longlat +datum=WGS84")
+```
+
+
+### Soil particle size classes (clay, silt and sand)
+The soil particle size classes (clay, silt and sand) were transformed from % to g.kg (*10)
+`texture`
+
+```{r}
+covar <-
+  covar %>% 
+  mutate(clay = clay * 10) %>%
+  mutate(sand = sand * 10) %>%
+  mutate(silt = silt * 10)
+```
+
+classified using European Soil Map (HYPRES) guidelines for soil description. The following codes are used:
+http://www.macaulay.ac.uk/hypres/hypressoil.html.
+
+* VF = Very fine (clay >= 60)
+* FN = Fine (<600 clay >350)
+* ME = Medium (clay <350)
+
+```{r}
+covar$texture <- cut(covar$clay, 
+                   breaks=c(-Inf, 350, 600, Inf), 
+                   labels=c("ME","FN","VF"))
+```
+
+I create new categorical predictor variables using data on LULC (forest, agriculture, grazing) and soil texture (medium,fine, very fine). These are dummy variables composed of zeros and ones.
+
+```{r}
+covar <-
+  covar %>%
+  mutate(
+    FS = ifelse(landuse == "FS", 1, 0),
+    U =  ifelse(landuse == "U", 1, 0),
+    AA = ifelse(landuse == "AA", 1, 0),
+    FP = ifelse(landuse == "FP", 1, 0),   
+    HE = ifelse(landuse == "HE", 1, 0),
+    
+    AV = ifelse(geology == "AV", 1, 0),
+    BV = ifelse(geology == "BV", 1, 0),
+    SE = ifelse(geology == "SE", 1, 0),
+
+    ME = ifelse(texture == "ME", 1, 0),
+    FI = ifelse(texture == "FI", 1, 0),
+    VF = ifelse(texture == "VF", 1, 0))
+```
+
+### Figure 2
+
+Correlation between soil organic carbon content (DRY COMBUSTION) in soil samples and spectra Vis-NIR-SWIR (mean = solid line, sd = grey). Preprocessing SMO (a), SGD (b), and CRR (c).
+
+```{r}
+#MUDAR PRE PROCESSAMENTO
+
+#####################################################
+#########################cálculo ds curvas médias e sd 
+geral.spectra <- SMO
+
+mean.geral <- apply(geral.spectra, 2 , FUN = mean) ##### mean 
+sd.geral   <- apply(geral.spectra, 2 , FUN = sd) ##### sd
+pos.sd.geral        <- -sd.geral ##### pos. and neg. std dev
+
+pos        <- (mean.geral + pos.sd.geral)
+neg        <- (mean.geral - pos.sd.geral)
+
+
+CR.pos.sd.table       <- rbind(mean.geral, pos, neg )
+
+CR.class.mean.pos.neg           <- (data.frame(t(CR.pos.sd.table)))
+colnames(CR.class.mean.pos.neg) <- c("Mean","Pos", "Neg")
+row.names(CR.class.mean.pos.neg)<- NULL
+
+CR.class.mean.pos.neg$band      <- seq(359,2496) #SMO
+
+geralSMO <- CR.class.mean.pos.neg
+
+#############
+geral.spectra <- SGD
+
+mean.geral <- apply(geral.spectra, 2 , FUN = mean) ##### mean 
+sd.geral   <- apply(geral.spectra, 2 , FUN = sd) ##### sd
+pos.sd.geral        <- -sd.geral ##### pos. and neg. std dev
+
+pos        <- (mean.geral + pos.sd.geral)
+neg        <- (mean.geral - pos.sd.geral)
+
+
+CR.pos.sd.table       <- rbind(mean.geral, pos, neg )
+
+CR.class.mean.pos.neg           <- (data.frame(t(CR.pos.sd.table)))
+colnames(CR.class.mean.pos.neg) <- c("Mean","Pos", "Neg")
+row.names(CR.class.mean.pos.neg)<- NULL
+
+CR.class.mean.pos.neg$band      <- seq(359,2496) #SMO
+
+geralSGD <- CR.class.mean.pos.neg
+
+####################
+geral.spectra <- CRR
+
+mean.geral <- apply(geral.spectra, 2 , FUN = mean) ##### mean 
+sd.geral   <- apply(geral.spectra, 2 , FUN = sd) ##### sd
+pos.sd.geral        <- -sd.geral ##### pos. and neg. std dev
+
+pos        <- (mean.geral + pos.sd.geral)
+neg        <- (mean.geral - pos.sd.geral)
+
+
+CR.pos.sd.table       <- rbind(mean.geral, pos, neg )
+
+CR.class.mean.pos.neg           <- (data.frame(t(CR.pos.sd.table)))
+colnames(CR.class.mean.pos.neg) <- c("Mean","Pos", "Neg")
+row.names(CR.class.mean.pos.neg)<- NULL
+
+CR.class.mean.pos.neg$band      <- seq(355,2498)
+
+geralCRR <- CR.class.mean.pos.neg
+
+#####################################################
+#########################SPECTRA CURVE
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+s1 <- ggplot2::ggplot(data = geralSMO) +
+  geom_ribbon(aes(ymin = Neg, ymax = Pos, x = band), alpha = 0.4, fill="gray") +
+  geom_line(aes(x = band, y = Mean), color="red", size = 1, lty =1) +
+  #scale_y_continuous("Reflectance", limits = c(0, 0.35)) +
+  #scale_x_continuous("Wavelength (nm)", limits = c(355,2500)) +
+  theme_bw() +
+   facet_grid(rows = vars("SMO")) +
+    theme(strip.text.y = element_text(size=12, color="black",
+                                      face="bold"))
+
+s2 <- ggplot2::ggplot(data = geralSGD) +
+  geom_ribbon(aes(ymin = Neg, ymax = Pos, x = band), alpha = 0.4, fill="gray") +
+  geom_line(aes(x = band, y = Mean), color="red", size = 1, lty =1) +
+  #scale_y_continuous("Reflectance", limits = c(-0.001, 0.0015)) +
+  #scale_x_continuous("Wavelength (nm)", limits = c(355,2500)) +
+  theme_bw() +
+   facet_grid(rows = vars("SGD")) +
+    theme(strip.text.y = element_text(size=12, color="black",
+                                      face="bold"))
+s3 <- ggplot2::ggplot(data = geralCRR) +
+  geom_ribbon(aes(ymin = Neg, ymax = Pos, x = band), alpha = 0.4, fill="gray") +
+  geom_line(aes(x = band, y = Mean), color="red", size = 1, lty =1) +
+  #scale_y_continuous("Reflectance", limits = c(0, 0.35)) +
+  #scale_x_continuous("Wavelength (nm)", limits = c(355,2500)) +
+  theme_bw() +
+   facet_grid(rows = vars("CRR")) +
+    theme(strip.text.y = element_text(size=12, color="black",
+                                      face="bold"))
+
+#####################################################
+#########################CORRELATION
+
+matrix <- cbind(soc, SMO)
+cormat <- round(cor(matrix),2)
+melted_cormat <- reshape2::melt(cormat)
+melted_cormat_SMO <-  melted_cormat %>% filter(Var1 == "DC")
+melted_cormat_SMO <-  melted_cormat_SMO[-c(1:3),]
+colnames(melted_cormat_SMO)[3] <- "Corr"
+
+####
+matrix <- cbind(soc, SGD)
+cormat <- round(cor(matrix),2)
+melted_cormat <- reshape2::melt(cormat)
+melted_cormat_SGD <-  melted_cormat %>% filter(Var1 == "DC")
+melted_cormat_SGD = melted_cormat_SGD[-c(1:3),]
+colnames(melted_cormat_SGD)[3] <- "Corr"
+
+###
+matrix <- cbind(soc, CRR)
+cormat <- round(cor(matrix),2)
+melted_cormat <- reshape2::melt(cormat)
+melted_cormat_CRR <-  melted_cormat %>% filter(Var1 == "DC")
+melted_cormat_CRR <-  melted_cormat_CRR[-c(1:3),]
+colnames(melted_cormat_CRR)[3] <- "Corr"
+
+#range(melted_cormat_SMO$value)
+#range(melted_cormat_SGD$value)
+#range(melted_cormat_CRR$value)
+
+#specCorr <- rbind(melted_cormat_SMO, melted_cormat_SGD, melted_cormat_CRR)
+#write.csv(specCorr, "../result/specCorr.csv")
+
+#####################################################
+#########################PLOT
+
+## pegar legenda
+#p0 <-  ggplot(data = melted_cormat_RAW, aes(x=Var1, y=Var2, fill=Corr)) + 
+#  geom_tile() +
+#  scale_fill_gradient2(low="navy", mid="white", high="red", 
+ #                      midpoint=0, limits=range(c(-1:1))) +
+#  coord_flip()
+#legend <- cowplot::get_legend(p0)
+#####
+
+p1 <-  ggplot(data = melted_cormat_SMO, aes(x=Var1, y=Var2, fill= Corr)) + 
+  geom_tile() +
+  xlab(" ") + ylab(" ") +
+  #theme(legend.position = "none") +
+  scale_fill_gradient2(low="navy", mid="white", high="red", 
+                       midpoint=0, limits=range(c(-1:1))) +
+  coord_flip()
+
+p2 <-  ggplot(data = melted_cormat_SGD, aes(x=Var1, y=Var2, fill=Corr)) + 
+  geom_tile() +
+  xlab(" ") + ylab(" ") +
+  #theme(legend.position = "none") +
+  scale_fill_gradient2(low="navy", mid="white", high="red", 
+                       midpoint=0, limits=range(c(-1:1))) +
+  coord_flip()
+
+p3 <-  ggplot(data = melted_cormat_CRR, aes(x=Var1, y=Var2, fill=Corr)) + 
+  geom_tile() +
+  xlab(" ") + ylab(" ") +
+  #theme(legend.position = "none") +
+  scale_fill_gradient2(low="navy", mid="white", high="red", 
+                       midpoint=0, limits=range(c(-1:1))) +
+  coord_flip()
+
+#ggpubr::ggarrange(s1, p1, s2, p2, s3, p3, ncol=1, nrow=6, common.legend = TRUE, legend="bottom")
+
+
+png("../result/fig/Spectra_corr.svg")
+ggpubr::ggarrange(s1, p1, s2, p2, s3, p3, ncol=1, nrow=6)
+dev.off()
+
+
+```
+
+
+# Pedotransfer functions
+
+## Model formulation
+
+We test 22 model formulations, starting with predictor variables that are more readly available and ending with the most complex/expensive model. These are:
+
+A. y ~ 0 + x
+B. y ~ 1 + x
+
+C. y ~ 1 + x + SGDSb9
+D. y ~ 1 + x + SGDWb1
+E. y ~ 1 + x + SGDWb14
+F. y ~ 1 + x + CRRWb2
+G. y ~ 1 + x + CRRWb2
+H. y ~ 1 + x + SGDorg24s
+I. y ~ 1 + x + SGDclay2s
+J. y ~ 1 + x + SGDclay7s
+K. y ~ 1 + x + CRRorg16s
+L. y ~ 1 + x + CRRorg24s
+M. y ~ 1 + x + CRRclay7s
+N. y ~ 1 + x + RAWCOL25
+O. y ~ 1 + x + SGDNFODI
+P. y ~ 1 + x + CRRB
+
+Q. y ~ 1 + x + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2
+
+R. y ~ 1 + x + SGDorg24s + CRRorg16s + CRRorg24s
+
+S. y ~ 1 + x + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI
+
+T. y ~ 1 + x + RAWCOL25 + CRRB
+
+U. y ~ 1 + x + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB
+
+V. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay
+
+W. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture 
+
+X. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse
+
+Y. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse + geology
+
+Z. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse + geology + coord
+
+```{r}
+data <- cbind(id, soc, covar, dataindex[4:length(dataindex)])
+```
+
+```{r}
+# Soil variables
+soc_methods <- c("DC", "WCt", "WCc")
+soc_methods <- expand.grid(soc_methods, soc_methods, stringsAsFactors = FALSE)[, 2:1]
+soc_methods <- soc_methods[!soc_methods[, 1] == soc_methods[, 2], ]
+
+# Predictor variables
+
+#Spectral index highcorrelation
+
+orgIndex <- "SGDorg24s + CRRorg16s + CRRorg24s"
+clayIndex <- "SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI"
+satIndex <- "SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2"
+corIndex <- "RAWCOL25 + CRRB"
+allIndex <-  "SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB"
+
+landuse <- "FS + U + AA + HE"
+texture <- "ME + FI + VF"
+geology <- "AV + BV + SE"
+coordinates <-  "coord_x + coord_y"
+
+#####
+
+formulas <- lapply(1:nrow(soc_methods), function (i) {
+  y <- soc_methods[i, 1]
+  x <- soc_methods[i, 2]
+  list(
+    glue("{y} ~ 0 + {x}"), # A
+    glue("{y} ~ 1 + {x}"), # B
+    glue("{y} ~ 1 + {x} + I({x}^2)"), # C
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDSb9"), # D
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDWb1"), # E
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDWb14"), # F   
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRWb2"), # G
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRWb2"), # H
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDorg24s"), # I
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDclay2s"), # J
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDclay7s"), # K
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRorg16s"), # L   
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRorg24s"), # M
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRclay7s"), # N
+    glue("{y} ~ 1 + {x} + I({x}^2) + RAWCOL25"), # O      
+    glue("{y} ~ 1 + {x} + I({x}^2) + SGDNFODI"),# P
+    glue("{y} ~ 1 + {x} + I({x}^2) + CRRB"),# Q
+    
+    glue("{y} ~ 1 + {x} + I({x}^2) + {orgIndex}"), # R
+    glue("{y} ~ 1 + {x} + I({x}^2) + {clayIndex}"), # S      
+    glue("{y} ~ 1 + {x} + I({x}^2) + {satIndex}"),# T
+    glue("{y} ~ 1 + {x} + I({x}^2) + {corIndex}"),# U     
+    glue("{y} ~ 1 + {x} + I({x}^2) + {allIndex}"),# V
+    
+    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture}"), # W
+    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse}"), # X
+    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse} + {geology}"), # Y    
+    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse} + {coordinates}") # Z
+)
+})
+names(formulas) <- sapply(formulas, function (x) x[[1]])
+```
+
+## Model estimation
+
+We use weighted least squares (WLS) to estimate model parameters. Below, we test the implementation of WLS to
+estimate the betas, make predictions and estimate prediction error variances. Estimates are compared with the
+output of `lm` and `predict.lm`. This toy exercise is usefull to understand the estimation equations and their
+differences compared to ordinary least squares.
+
+```{r, echo = FALSE, eval = FALSE}
+# Test observations
+vam = caret::createDataPartition(data$DC, p = 0.80, list = FALSE)
+test <- data[-vam, ]
+tmp_data <- data[vam, ]
+
+# Estimate model using lm
+fit <- lm(DC ~ WCc + clay, data = tmp_data, weights = 1 / WCc)
+pred <- predict.lm(
+  fit, tmp_data[i, c("WCc", "clay")], se.fit = TRUE, weights = ~ 1 / WCc, interval = "prediction", level = 0.95)
+
+# Dependent variable
+Y <- tmp_data["DC"] %>% as.matrix()
+
+# Predictor variables
+X <- data.frame(x0 = 1, tmp_data[c("WCc", "clay")]) %>% as.matrix()
+
+# Weights
+W <- matrix(0, ncol = nrow(X), nrow = nrow(X))
+diag(W) <- 1 / X[, "WCc"]
+
+# Estimate betas: (X'WX)⁻¹X'WY
+b_hat <- solve(t(X) %*% W %*% X) %*% t(X) %*% W %*% Y %>% drop()
+data.frame(b_hat = b_hat, lm = fit$coefficients)
+
+# Residual sum of squares
+rss <- sum(diag(W) * (Y - X %*% drop(b_hat))^2) / (nrow(X) - ncol(X))
+data.frame(rss, lm = summary(fit)$sigma^2)
+
+# Prediction at a point
+x0 <- data.frame(x0 = 1, tmp_data[i, c("WCc", "clay")]) %>% as.matrix()
+y_hat <- x0 %*% drop(b_hat)
+data.frame(y_hat = y_hat, lm = pred$fit[, "fit"])
+
+# Prediction error variance:
+# OLS: RSS * (1 + x0 (X'WX)⁻¹x0')
+# WLS: RSS * (c + x0 (X'WX)⁻¹x0')
+# c = 1 / w_x0
+pev <- rss * diag(x0[, "WCc"] + x0 %*% solve(t(X) %*% W %*% X) %*% t(x0))
+data.frame(pev = pev, lm = pred$se.fit^2 + pred$residual.scale^2 * x0[, "WCc"])
+
+# Prediction intervals
+bounds <- qt(p = (1 - 0.95) / 2, df = fit$df.residual) * sqrt(pev) * -1
+bounds <- y_hat + data_frame(lwr = -bounds, upr = bounds)
+data.frame(bounds, lm = pred$fit[, -1])
+```
+
+## Model validation
+
+Run leave-one-out cross-validation and compute performance measures:
+
+* MedE: median error
+* MedSE: median squared error
+* MedAE: median absolute error
+* MedSDR: median squared deviation ratio
+* AVE: amount of variation explained (or model efficiency)
+* mAVE: modified amount of variation explained (or modified model efficiency)
+
+The median is used instead of the mean because it is less sensitive to outliers.
+
+# Results
+
+## Carbon and organic matter data
+
+### Figure 3
+
+Scatter plot matrix of the soil carbon and organic matter content measured using four different analytical 
+methods and their relation to the total clay content and class (0-250, 251-500, 501-1000 g kg-1). The solid 
+line represents a perfect 1:1 linear relation, while the dashed line is the observed empirical linear relation
+between variables.
+
+```{r, eval = FALSE}
+# outliers <- c(58, 74, 66, 69, 70, 101, 102, 103, 105)
+png("res/fig/scatter-plot-matrix.png", width = 480 * 4, height = 480 * 4, res = 72 * 3)
+p1 <- 
+  data %>% 
+  dplyr::select(DC, WCc, WCt) %>% 
+  # dplyr::select(toc, oc, om, tom, clay) %>%
+  # mutate(toc = toc / max(toc), oc = oc / max(oc), om = om / max(om), tom = tom / max(tom)) %>%
+  lattice::splom(
+    groups = data$textura, grid = TRUE, auto.key = list(columns = 3), xlab = '', 
+    pscales = 0,
+    prepanel.limits = function (x) c(0, 1), abline = c(0, 1),
+    panel = function (x, y, ...) {
+      m <- min(x, y, na.rm = TRUE)
+      s <- diff(range(x, y, finite = TRUE))
+      x1 <- (x - m) / s
+      y1 <- (y - m) / s
+      lattice::panel.splom(x1, y1, ...)
+      lattice::panel.lmline(x = x1, y = y1, lty = 'dashed')
+    },
+    # prepanel.limits = function (x) c(0, 1),
+    # prepanel.limits = function (x) c(0, 450),
+    varnames = c(expression(atop('DC', '4\u2013162 g kg'^'-1')),
+                 expression(atop('WCC', '4\u2013175 g kg'^'-1')),
+                 expression(atop('WCT', '8\u2013419 g kg'^'-1')))
+    ) #+
+                 # expression(atop('OM', 'g dm'^'-3')), expression(atop('TOM', 'g kg'^'-1')),
+                 # expression(atop('Clay', 'g kg'^'-1')))) +
+  # latticeExtra::layer(panel.abline(a = 0, b = 1)) +
+  # latticeExtra::layer(panel.lmline(x = x, y = y, lty = 'dashed'))
+# Potential outliers
+# p1 <- p1 + latticeExtra::layer(panel.text(x = x[outliers], y = y[outliers], outliers, pos = 1, cex = 0.7))
+p1
+dev.off()
+
+```
+
+Compute the linear correlation coeeficient between variables. This is used to discuss Figure 4.
+
+```{r}
+cor(data[, c("DC", "WCc", "WCt", "clay")]) %>% round(3)
+```
+
+```{r}
+cor.test(data$DC, data$clay);cor.test(data$WCc, data$clay)
+```
+
+Compute the correlation between clay and DC when DC is very low (DC < 50).
+
+```{r}
+cor.test(data[data$DC < 2, ]$DC, data[data$C < 2, ]$clay)
+cor.test(data[data$WCc < 2, ]$DC, data[data$WCc < 2, ]$clay)
+```
+
+## Prediction performance
+
+Identify minimum and maximum values to define a criterion to scale performance measures (MedE, MedAE, and 
+MedSE) so that they are comparable.
+
+```{r}
+data %>% dplyr::select(DC, WCc, WCt) %>% sapply(min)
+data %>% dplyr::select(DC, WCc, WCt) %>% sapply(max)
+```
+
+```{r irwls, echo=FALSE, eval=FALSE}
+irwls <- 
+  function (formula, data, type = c("sd", "var"), maxit = 25, epsilon = 1e-8, trace = TRUE) {
+    
+    # Unweighted least squares fit
+    ols_fit <- lm(formula = formula, data = data)
+    deviance0 <- deviance(ols_fit)
+    if (trace) {
+      print(glue::glue("iteration: 0; deviance: {deviance0}\n"))
+    }
+    
+    # Choose between variance and standard deviation functions
+    type <- match.arg(type)
+    data$variance <- switch (
+      type,
+      sd = {
+        abs(residuals(ols_fit))
+      },
+      var = {
+        residuals(ols_fit)^2
+      })
+    
+    # Variance or standard deviation function
+    
+    f <- update.formula(formula, variance ~ .)
+    
+    # Iterations
+    for (i in 1:maxit) {
+      
+      # Estimate the variance or standard deviation function
+      var_fit <- lm(formula = f, data = data)
+      data$wgt <- switch (
+        type,
+        sd = {
+          1 / fitted(var_fit)^2
+        },
+        var = {
+          1 / abs(fitted(var_fit))
+        })
+      
+      # Estimate regression coefficients using WLS
+      wls_fit <- lm(formula = formula, data = data, weights = wgt)
+      
+      # Compute residual sum of squares (deviance) of fitted model
+      deviance1 <- deviance(wls_fit)
+      if (trace) {
+        print(glue::glue("iteration: {i}; deviance: {deviance1}\n"))
+      }
+      
+      # Test convergence
+      converged <- (abs(deviance1 - deviance0) / (abs(deviance1) + 0.1)) < epsilon
+      if (converged) {
+        break
+      } else {
+        deviance0 <- deviance(wls_fit)
+        
+        data$variance <- switch (
+          type,
+          sd = {
+            abs(residuals(wls_fit))
+          },
+          var = {
+            residuals(wls_fit)^2
+          })
+      }
+    }
+    
+    # Output
+    return (var_fit)
+  }
+```
+
+```{r}
+estimator <- "wls"
+```
+
+```{r loocv}
+model_fit <- list()
+cross_validation <- list()
+# i <- 1
+for (i in 1:length(formulas)) {
+  
+  forms <- formulas[[i]]
+  y <- data[[soc_methods[i, 1]]]
+  resid <- mean(y) - y
+  x <- data[[soc_methods[i, 2]]]
+  if (estimator == "wls") {
+    wgt <- 1 / x # weigths are inversely proportional to the predictor variable
+    # wgt <- 1 / x^2 # poorer result
+    # wgt <- 1 / sqrt(x) # poorer result
+  } else if (estimator == "ols") {
+    wgt <- rep(1, length(x))
+  }
+  
+  fit <- list()
+  loocv <- list()
+  # j <- 7
+  for (j in 1:length(forms)) {
+    f <- forms[[j]]
+    
+    # Record fitted models for latter reuse
+    fit[[j]] <- lm(formula = f, data = data, weights = wgt)
+    
+    out <- data.frame(pred = NA_real_, pev = NA_real_)
+    # Leave-one-out cross-validation
+    # k <- 1
+    print(f)
+    for (k in 1:nrow(data)) {
+      # Weighted least squares regression
+      # Predict value of dependent variable at new observation and return components of the error variance
+      # The residual standard deviation needs to be 'scaled' using the weight of the new observation
+      lm_fit <- lm(formula = f, data = data[-k, ], weights = wgt[-k])
+      pred <- predict.lm(object = lm_fit, newdata = data[k, ], se.fit = TRUE)
+      out[k, ] <- c(pred$fit, pred$se.fit^2 + pred$residual.scale^2 / wgt[k])
+      # IRWLS
+      # irls_fit <- irwls(formula = f, data = data[-k, ], type = "sd", maxit = 100, epsilon = 1e-3)
+      # lm_fit <- lm(formula = f, data = data[-k, ], weights = 1 / fitted(irls_fit)^2)
+      # pred <- predict.lm(object = lm_fit, newdata = data[k, ], se.fit = TRUE)
+      # wgt <- predict.lm(object = irls_fit, newdata = data[k, ])^2
+      # out[k, ] <- c(pred$fit, pred$se.fit^2 + pred$residual.scale^2 * wgt)
+    }
+    
+    # Cross-validation statistics
+    # Measures (MedE, MedSE, and MedAE) are scaled using the maximum observed value of the dependent variable
+    error <- out$pred - y
+    error_sqr <- error * error
+    error_abs <- abs(error)
+    denom <- max(y) # scale measures
+    loocv[[j]] <- data.frame(
+      
+      # Model
+      f = f,
+      p = LETTERS[j] %>% as.factor(),
+      y = soc_methods[i, 1],
+      x = soc_methods[i, 2],
+      m = glue("{soc_methods[i, 1]} ~ {soc_methods[i, 2]}") %>% toupper() %>% as.factor(),
+      
+      # Median error measures
+      MedE = median(error) / denom,
+      MedAE = median(error_abs) / denom,
+      MedSE = median(error_sqr) / (denom * denom),
+      # MedSDR = 1 - qchisq(p = 0.5, df = 1) + median(error_sqr / out$pev), # DEPRECATED
+      MedSDR = median(error_sqr / out$pev),
+      # MedSDR = mean(error_sqr / out$pev),
+      
+      # Model efficiency
+      AVE = 1 - (sum(error_sqr) / sum(resid * resid)),
+      mAVE = 1 - (sum(error_abs) / sum(abs(resid))) # less sensitive to outliers than AVE
+    )
+  }
+  names(fit) <- forms
+  model_fit[[i]] <- fit
+  cross_validation[[i]] <- do.call(rbind, loocv)
+}
+cross_validation <- do.call(rbind, cross_validation)
+```
+
+Prediction bias of the most complex models.
+
+```{r}
+cross_validation %>% filter(p == "G") %>% dplyr::select(MedE) %>% c()
+```
+
+Spread of prediction errors for DC ~ WCc and DC ~ WCt accross model formulations.
+
+```{r}
+cross_validation %>% filter(m == "DC ~ WCC" | m == "DC ~ WCT") %>% dplyr::select(MedSE, MedAE) %>% 
+  summarise(mean(MedSE), mean(MedAE)) %>% round(3)
+```
+
+Spread of prediction errors for DC ~ WCC and DC ~ WCC accross model formulations.
+
+```{r}
+cross_validation %>% filter(m == "DC ~ WCC" | m == "DC ~ WCT") %>% filter(p == "A" | p == "G") %>% 
+  dplyr::select(m, p, MedSE, MedAE)
+```
+
+Median squared deviation ratio of the least and most complex models.
+
+```{r, fig.asp = 1}
+cross_validation %>% 
+  filter(p == "A" | p == "S") %>%
+  dplyr::select(m, MedSDR) %>% 
+  group_by(m) %>% 
+  summarise(dif = diff(MedSDR)) %>% 
+  arrange(dif)
+```
+
+```{r, fig.asp = 1}
+cross_validation %>% 
+  filter(p == "A" | p == "S") %>%
+  dplyr::select(m, p, MedSDR)
+```
+
+### Figure 5
+
+Leave-one-out cross-validation performance of PTFs estimated via WLS. Line color and type indicate the 
+dependent and predictor variable, respectively. Measurement units of MedE, MedAE, and MedSE are % -- for 
+TOC, OC, and TOM -- and g dm-3 -- for OM, while MedSDR, AVE, and mAVE are unitless performance measures. Model
+formulations are described in Table 2. Performance measures are defined in Table 3.
+
+```{r loocvplot, eval = FALSE}
+col <- c("dodgerblue", "magenta", "olivedrab") %>% rep(each = 2)
+lty <- c(1, 2, 3, 4, 2, 3)
+p1 <-
+  xyplot(
+    AVE + mAVE + MedAE + MedSE + MedE + MedSDR ~ p, data = cross_validation, groups = m,
+    type = "l", col = col, lty = lty, lwd = 3, xlab = "Model formulation", ylab = "",
+    key = list(lines = list(col = col, lty = lty, lwd = 3), columns = 4, 
+               text = list(levels(cross_validation$m))),
+    scales = list(x = list(relation = "same"), y = list(relation = "free")), layout = c(2, 3),
+    panel = function (...) {
+      panel.grid(h = -1, v = -1)
+      panel.xyplot(...)
+    })
+png(glue("../result/cross-validation-{estimator}.png"), width = 480 * 4, height = 480 * 5, res = 72 * 3)
+p1
+dev.off()
+```
+
+Save fitted models and print model summary.
+
+```{r}
+save(model_fit, file = "../result/model_fit.rda")
+lapply(model_fit, function (x) {
+  lapply(x, summary)
+})
+```
+
+

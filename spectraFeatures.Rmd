@@ -4,7 +4,13 @@ author: "Horst-Heinen"
 date: "20/05/2021"
 output: html_document
 ---
+# SPECTRA COVARIATES
 
+# IMPROVING DATA COMPATIBILITY ON SPECTRAL LIBRARIES: SOIL ORGANIC CARBON PEDOTRANSFER FUNCTIONS FOR SOUTHERN BRAZIL
+
+## Objetive
+
+Experimental procedure to harmonize SOC data (DC, WCt, and WCc) from the southern Brazilian spectral library considering its geographic, topography, pedologic, and spectra data.
 
 ```{r}
 #library(devtools)
