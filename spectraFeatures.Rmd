@@ -497,6 +497,6 @@ indexs <- do.call(cbind, index)
 
 # EXPORT
 ```{r}
-index <-cbind(data[1:40], rAbundMineral, indexs)
+index <-cbind(data[1:31], rAbundMineral, indexs)
 write.csv(index, "data/data.csv")
 ```

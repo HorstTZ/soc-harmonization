@@ -20,6 +20,12 @@ library(sp)
 library(tidyr)
 library(magrittr)
 library(factoextra)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(gridGraphics)
+library(latticeExtra)
+library(lattice)
 ```
 
 
@@ -27,8 +33,7 @@ library(factoextra)
 The dataset is stored in the folder `data`.
 
 ```{r}
-data <- read.csv("../data/dataFinal.csv", sep = ",")
-proj4string(data) <- CRS("+proj=longlat +datum=WGS84")
+data <- read.csv("data/data.csv", sep = ",")
 ```
 
 ### Figure 1
@@ -37,6 +42,7 @@ Empirical probability density of carbon (A, C, and E) acontent in soil samples  
 Key characteristics of the soil samples and its site, such as the clay content (B), land use/land cover (D), and parental material (F).
 
 ```{r, eval = FALSE}
+
 l <- layer(
   panel.mathdensity(
     dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
@@ -78,7 +84,6 @@ p3 <- histogram(
     grid::grid.text(label = "C)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
   }) + l
 
-
 p4 <- histogram(
   ~ clay, data, xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
   col = 'lightgray',
@@ -92,30 +97,8 @@ p4 <- histogram(
   }) +
   latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
 
-p5 <- barchart(
-  data$geology, xlab = 'Parental material', ylab = 'Percent of total', horizontal = FALSE, 
-  col = 'lightgray',
-  panel = function (...) {
-    lattice::panel.grid(h = -1, v = 0)
-    lattice::panel.barchart(...)
-  },
-  page = function (n) {
-    grid::grid.text(label = "E)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
-  })
-
-p6 <- barchart(
-  data$landuse, xlab = 'Land use or land cover', ylab = 'Percent of total', horizontal = FALSE, 
-  col = 'lightgray',
-  panel = function (...) {
-    lattice::panel.grid(h = -1, v = 0)
-    lattice::panel.barchart(...)
-  },
-  page = function (n) {
-    grid::grid.text(label = "F)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
-  })
-
-png("../result/hist-soil-samples.png")
-gridExtra::grid.arrange(p1, p4, p2, p5, p3, p6,  ncol = 2)
+png("result/hist-soil-samples.png")
+gridExtra::grid.arrange(p1, p2, p3, p4,  ncol = 2)
 dev.off()
 ```
 
@@ -129,6 +112,34 @@ specOrg <- data[31:54]
 specWater <- data[55:length(data)]
 ```
 
+```{r}
+data$Klevel <- cut(data$rKao, 
+                   breaks=c(-Inf, 0.7, 1.4, Inf), 
+                   labels=c("Klow","Kmed","Khigh"))
+
+data$Glevel <- cut(data$rGoe, 
+                   breaks=c(-Inf, 0.4, 0.8, Inf), 
+                   labels=c("Glow","Gmed","Ghigh"))
+
+data$Hlevel <- cut(data$rHem, 
+                   breaks=c(-Inf, 0.4, 0.8, Inf), 
+                   labels=c("Hlow","Hmed","Hhigh"))
+```
+
+### Figure 2
+
+Correlation chart
+
+```{r}
+png("result/corr-soc-px.png", width = 480 * 4, height = 480 * 4, res = 72 * 3)
+data %>% 
+  dplyr::select(DC, WCc, WCt, rKao, rGoe, rHem) %>%
+  psych::pairs.panels(method = "spearman", 
+                      bg=c("red","yellow","blue")[as.factor(data$local)],)
+
+dev.off()
+
+```
 
 #### Coordinates
 
@@ -136,28 +147,102 @@ specWater <- data[55:length(data)]
 wgs84utm22s <- sp::CRS('+proj=utm +zone=22 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 sirgas2000 <- sp::CRS('+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs')
 #sp::spTransform(wgs84utm22s)
+coordinates(data) <- ~ coord_x + coord_y
+proj4string(data) <- CRS("+proj=longlat +datum=WGS84")
 ```
-##### topogáfica:
+
+##### topogáfica
 
 Relação indireta -> influencia na pedogênese, mineralogia.
 variáveis topográficas + espectro ajudam a explicar a variância dos carbono - Artigo GEODERMA 2021.
 Pode se relacionar com o material de origem, formação de argilominerais, óxidos de ferro, e podem influenciar diretamente na recuperação de COS na amostra.
 SC - estrutura de microagregados é bem diferente.
 
-TWI
-```{r}
-TWI <- raster::raster("../data/raster/twi/sTWI.tif")
-```
-
-
 ### Land use and land cover (LULC)
 https://code.earthengine.google.com/?accept_repo=users/mapbiomas/user-toolkit 
 
 MAPBIOMAS
 ```{r}
-lulc2009 <- raster::raster("../data/raster/lulc/lulc2009_wgs84.tif")
-lulc2013 <- raster::raster("../data/raster/lulc/lulc2013_wgs84.tif")
-lulc2016 <- raster::raster("../data/raster/lulc/lulc2016_wgs84.tif")
+l <- layer(
+  panel.mathdensity(
+    dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
+
+p1 <- histogram(
+  ~ twi, data, 
+  xlab = expression('Topographic wetness index'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p2 <- histogram(
+  ~ bio12c2, data, 
+  xlab = expression('Annual Precipitation'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p3 <- histogram(
+  ~ bio1c2, data, 
+  xlab = expression('Annual Mean Temperature'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p4 <- histogram(
+  ~ bio3c2, data, 
+  xlab = expression('Isothermality'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p5 <- histogram(
+  ~ bio7c2, data, 
+  xlab = expression('Temperature Annual Range'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p6 <- histogram(
+  ~ bio17c2, data, 
+  xlab = expression('Precipitation Seasonality'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+
+png("result/hist-clim-samples.png")
+gridExtra::grid.arrange(p1, p2, p3, p4, p5, p6,  ncol = 2)
+dev.off()
 ```
 
 `land-use`
@@ -180,18 +265,106 @@ lim = raster::stack(l)
 proj4string(lim) <- CRS("+proj=longlat +datum=WGS84")
 ```
 
+Empirical probability density of environmental covariates (A, C, and E) acontent in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+Key characteristics of the soil samples and its site, such as the clay content (B), land use/land cover (D), and parental material (F).
 
-### Soil particle size classes (clay, silt and sand)
-The soil particle size classes (clay, silt and sand) were transformed from % to g.kg (*10)
-`texture`
+```{r, eval = FALSE}
+l <- layer(
+  panel.mathdensity(
+    dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
 
-```{r}
-covar <-
-  covar %>% 
-  mutate(clay = clay * 10) %>%
-  mutate(sand = sand * 10) %>%
-  mutate(silt = silt * 10)
+p1 <- histogram(
+  ~ twi, data, 
+  xlab = expression('Topographic wetness index'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p2 <- histogram(
+  ~ bio12c2, data, 
+  xlab = expression('SOC,  Wet digestion + colorimetry [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "B)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+  
+
+p3 <- histogram(
+  ~ bio17c2, data, 
+  xlab = expression('SOC, Wet digestion + titration [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "C)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p4 <- histogram(
+  ~ bio1c2, data, xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "D)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p5 <- histogram(
+  ~ bio3c2, data, xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "D)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p6 <- histogram(
+  ~ bio7c2, data, xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "D)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p7 <- barchart(
+  data$landuse, xlab = 'Land use or land cover', ylab = 'Percent of total', horizontal = FALSE, 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(h = -1, v = 0)
+    lattice::panel.barchart(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "F)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+png("../result/hist-soil-samples.png")
+gridExtra::grid.arrange(p1, p4, p2, p5, p3, p6,  ncol = 2)
+dev.off()
 ```
+
 
 classified using European Soil Map (HYPRES) guidelines for soil description. The following codes are used:
 http://www.macaulay.ac.uk/hypres/hypressoil.html.
