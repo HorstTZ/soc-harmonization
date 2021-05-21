@@ -1,0 +1,46 @@
+;Soil constituent;Fundamental (cm? 1);lower;Wav (nm);upper;mode
+Fe oxides;Goethite1;;424;434;444;Electronic transitions
+Fe oxides;Goethite2;;470;480;490;Electronic transitions
+Fe oxides;Goethite3;;640;650;660;Electronic transitions
+Fe oxides;Goethite4;;910;920;930;Electronic transitions
+Fe oxides;Haematite1;;394;404;414;Electronic transitions
+Fe oxides;Haematite2;;434;444;454;Electronic transitions
+Fe oxides;Haematite3;;519;529;539;Electronic transitions
+Fe oxides;Haematite4;;640;650;660;Electronic transitions
+Fe oxides;Haematite5;;874;884;894;Electronic transitions
+Water;Water1;?1 ?–? 3278 cm? 1;1905;1915;1925;?2 + ?3
+Water;Water2;?2 H–O–H 1645 cm? 1;1445;1455;1465;2?2 + ?3
+Water;Water3;?3 O–H 3484 cm? 1;1370;1380;1390;?1 + ?3
+Water;Water4;;1125;1135;1145;?1 + ?2 + ?3
+Water;Water5;;930;940;950;2?1 + ?3
+Hydroxyl;Hydroxyl1;?1 O–H 3575 cm? 1;1390;1400;1410;2?1
+Hydroxyl;Hydroxyl2;;920;930;940;3?1
+Hydroxyl;Hydroxyl3;;690;700;710;4?1
+Clay minerals;Kaolin doublet1;?1a O–H 3695 cm? 1;1385;1395;1405;2?1a
+Clay minerals;Kaolin doublet2;?1b O–H 3620 cm? 1;1405;1415;1425;2?1b
+Clay minerals;Kaolin doublet3;? Al–OH 915 cm? 1;2150;2160;2170;?1a + ?
+Clay minerals;Kaolin doublet4;;2198;2208;2218;?1b + ?
+Organics;Aromatics1;?1 C–H 3030 cm? 1;1640;1650;1660;2?1
+Organics;Aromatics2;;1090;1100;1110;3?1
+Organics;Aromatics3;;815;825;835;4?1
+Organics;Amine1;? ?–H 1610 cm? 1;2050;2060;2070;?1 + ?
+Organics;Amine2;?1 N–H 3330 cm? 1;1490;1500;1510;2?1
+Organics;Amine3;;990;1000;1010;3?1
+Organics;Amine4;;741;751;761;4?1
+Organics;Alkyl asymmetric–symmetric doublet1;?3 C–H 2930 cm? 1;1696;1706;1716;2?3
+Organics;Alkyl asymmetric–symmetric doublet2;?1 C–H 2850 cm? 1;1744;1754;1764;2?1
+Organics;Alkyl asymmetric–symmetric doublet3;;1128;1138;1148;3?3
+Organics;Alkyl asymmetric–symmetric doublet4;;1160;1170;1180;3?1
+Organics;Alkyl asymmetric–symmetric doublet5;;843;853;863;4?3
+Organics;Alkyl asymmetric–symmetric doublet6;;867;877;887;4?1
+Organics;Carboxylic acids1;?1 C?O 1725 cm? 1;1920;1930;1940;3?1
+Organics;Carboxylic acids2;;1439;1449;1459;4?1
+Organics;Amides1;?1 C?O 1640 cm? 1;2023;2033;2043;3?1
+Organics;Amides2;;1514;1524;1534;4?1
+Organics;Aliphatics1;?1 C–H 1465 cm? 1;2265;2275;2285;3?1
+Organics;Aliphatics2;;1696;1706;1716;4?1
+Organics;Methyls1;?1 C–H 1445–1350 cm? 1;2307;2307–2469;2469;3?1
+Organics;Methyls2;;1730;1730–1852;1852;4?1
+Organics;Phenolics1;?1 C–OH 1275 cm? 1;1951;1961;1971;4?1
+Organics;Polysaccharides1;?1 C–O 1170 cm? 1;2127;2137;2147;4?1
+Organics;Carbohydrates1;?1 C–O 1050 cm? 1;2371;2381;2391;4?1
