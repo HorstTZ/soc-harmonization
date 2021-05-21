@@ -36,7 +36,7 @@ notInstalled <- myPackages[!(myPackages%in%installed.packages()[ , "Package"])]
 if(length(notInstalled)>0) install.packages(notInstalled)
 
 library(magrittr)
-library(soilspec)
+#library(soilspec)
 ```
 
 # Feature Selection
@@ -53,15 +53,6 @@ Illite                            2155–2266, 2306–2385
 Goethite                          457–563, 776–1266
 Hematite                          455–612, 765–1050
 -----------------------------------------------------------
-```{r}
-limRef <- data.frame(mineral = numeric(), lower = numeric(), upper = numeric())
-
-ref[1,] <- c("Kaolinite", 2078, 2267)
-ref[2,] <- c("Goethite1", 457, 563)
-ref[3,] <- c("Goethite2", 776, 1266)
-ref[4,] <- c("Hematite1", 455, 612)
-ref[5,] <- c("Hematite2", 765, 1050)
-```
 
 #### Functions
 
@@ -129,7 +120,6 @@ wavelength <- seq(350, 2500, by = 1)
 
 ```{r kaolinita}
 # select reference mineral
-#data("mineralRef")  #reference spectra 
 str(mineralRef)
 
 ref <- as.data.frame(t(mineralRef$kaolinite_114))
@@ -167,7 +157,6 @@ rawSpectrum = SpecZoomCR$wave)
 
 ```{r geotita1}
 # select reference mineral
-#data("mineralRef")  #reference spectra 
 str(mineralRef)
 
 ref <- as.data.frame(t(mineralRef$Geothite))
@@ -205,8 +194,6 @@ rawSpectrum = SpecZoomCR$wave)
 
 ```{r geotita2}
 # select reference mineral
-#data("mineralRef")  #reference spectra 
-str(mineralRef)
 
 spectra <- as.data.frame(t(mineralRef$Geothite))
 colnames(spectra) <- wavelength
@@ -243,8 +230,6 @@ rawSpectrum = SpecZoomCR$wave)
 
 ```{r hematite1}
 # select reference mineral
-#data("mineralRef")  #reference spectra 
-str(mineralRef)
 
 spectra <- as.data.frame(t(mineralRef$hematite))
 colnames(spectra) <- wavelength
@@ -281,8 +266,6 @@ rawSpectrum = SpecZoomCR$wave)
 
 ```{r hematite2}
 # select reference mineral
-#data("mineralRef")  #reference spectra 
-str(mineralRef)
 
 spectra <- as.data.frame(t(mineralRef$hematite))
 colnames(spectra) <- wavelength
@@ -323,8 +306,8 @@ rawSpectrum = SpecZoomCR$wave)
  Comparing Soil Spectra with Spectra of Reference Materials
 
 ```{r import data}
-data <- read.csv("../data/data_soc_methods.csv", sep = ";")
-spectra <- data[,c(27:length(data))]
+data <- read.csv("data/data_covar.csv", sep = ";")
+spectra <- data[,c(32:length(data))]
 
 oldNames <- grep("X", names(spectra), value = TRUE)
 wavelength <- as.numeric(substring(grep("X", names(spectra), value = T), 2, 20))
