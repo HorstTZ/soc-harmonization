@@ -5,26 +5,547 @@ date: "20/05/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+```{r}
+#library(devtools)
+# install the soilspec package from GitHub
+#devtools::install_github("AlexandreWadoux/soilspec", force = FALSE)
+
+myPackages <- c("SDMTools", "tripack", "resemble", "splancs", "sp")
+notInstalled <- myPackages[!(myPackages %in% installed.packages()[ , "Package"])]
+if(length(notInstalled)) install.packages(notInstalled)
+
+
+myPackages <- c("asdreader", "RColorBrewer","wavethresh", "MASS",
+"pracma", "plyr", "signal", "SDMTools",
+"tripack", "resemble", "splancs", "sp",
+"scatterplot3d", "prospectr", "RcppArmadillo", "matrixStats",
+"clhs", "viridis", "viridisLite", "caret",
+"ggplot2", "soiltexture","randomForest","pls",
+"Cubist", "lattice", "robustbase", "mvoutlier",
+"devtools")
+# define which packages are not installed in the current computer
+notInstalled <- myPackages[!(myPackages%in%installed.packages()[ , "Package"])]
+# install the missing packages
+if(length(notInstalled)>0) install.packages(notInstalled)
+
+library(magrittr)
+library(soilspec)
 ```
 
-## R Markdown
+# Feature Selection
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+## Identifying Secondary Clay Minerals and Iron Oxides
+Font U.S. Geological Survey digital spectral library
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Mineral Diagnostic               wavelength range(s)/nm
+----------------------------------------------------------
+Kaolinite                         2078–2267
+Smectite                          2118–2287
+Kaolinite-smectite 50-50 mixture  2128–2258
+Illite                            2155–2266, 2306–2385
+Goethite                          457–563, 776–1266
+Hematite                          455–612, 765–1050
+-----------------------------------------------------------
+```{r}
+limRef <- data.frame(mineral = numeric(), lower = numeric(), upper = numeric())
 
-```{r cars}
-summary(cars)
+ref[1,] <- c("Kaolinite", 2078, 2267)
+ref[2,] <- c("Goethite1", 457, 563)
+ref[3,] <- c("Goethite2", 776, 1266)
+ref[4,] <- c("Hematite1", 455, 612)
+ref[5,] <- c("Hematite2", 765, 1050)
 ```
 
-## Including Plots
+#### Functions
 
-You can also embed plots, for example:
+```{r trimSpec}
+# function for trimming spectra or targeting a specific spectral region of interest
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+trimSpec <- function(spectra, wavlimits){
+datawavs <- as.numeric(colnames(spectra))
+# set the limits
+limits <- which(datawavs %in% wavlimits)
+# mention the index that we keep from the matrix
+keptIndex <- seq(limits[1], limits[2], 1)
+# keep the index selected previously
+trimmedSpectra <- spectra[, keptIndex]
+# return the trimmed spectra
+keptNames <- datawavs[keptIndex]
+colnames(trimmedSpectra) <- keptNames
+return(trimmedSpectra)
+}
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r HullCRR}
+HullCRR <- function (spectra, type = c("R", "A"), wav, ...) 
+{
+    X <- spectra
+    if (type == "A") {
+        X <- 1/X
+    }
+    cHullFun <- function(x, wav) {
+        cHull <- sort(chull(c(wav[1] - 1, wav, wav[length(wav)] + 
+            1), c(0, x, 0)))
+        cHull <- cHull[-c(1, length(cHull))] - 1
+        cont <- approx(x = wav[cHull], y = x[cHull], xout = wav, 
+            method = "linear")$y
+        return(cont)
+    }
+    cont <- cHullFun(X, wav)
+    if (type == "A") {
+        hullSpectra <- 1 + X - cont
+    }
+    else {
+        hullSpectra <- X/cont
+    }
+    if (type == "A") {
+        hullSpectra <- 1/hullSpectra
+        cont <- 1/cont
+        X <- 1/X
+    }
+    pol <- cbind(wav, as.numeric(hullSpectra[1, ]))
+    retval <- list(wave = wav, cHull = hullSpectra, rawSpec = X, 
+        continuum = cont, polygon = pol)
+    return(retval)
+}
+```
+
+##### Prepare reference material
+
+```{r imp Ref}
+mineralRef <- read.csv("../data/mineralRef.csv")
+mineralRef <- mineralRef[c("wavelength", "Geothite", "hematite", "kaolinite_114")]
+  
+# create a sequence of numbers to represent the wavelength
+wavelength <- seq(350, 2500, by = 1)
+```
+
+```{r kaolinita}
+# select reference mineral
+#data("mineralRef")  #reference spectra 
+str(mineralRef)
+
+ref <- as.data.frame(t(mineralRef$kaolinite_114))
+colnames(ref) <- wavelength
+
+lower <- 2078 # diagnostic wavelength range
+upper <- 2267 # diagnostic wavelength range
+
+SpecZoom <- trimSpec(ref, 
+wavlimits = c(lower, upper)) # spectrum trimming
+
+SpecZoomCR <- HullCRR(spectra = SpecZoom, # continuum removal function
+wav = as.numeric(colnames(SpecZoom)),
+type = "R")
+
+waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find minimum
+
+Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+Sl <- SpecZoomCR$continuum[waveId] # calculate band depth
+
+featureDepth <- 1 - (Scr/Sl)
+featureArea <- splancs::areapl(SpecZoomCR$polygon) # calculate area of the polygon
+featureSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1] # calculate slope of the continuum
+
+kaolin1141summary <- list(name = "kaolinite114",
+wave = as.numeric(colnames(SpecZoom[1,])),
+CRspectra = SpecZoomCR$cHull,
+bandDepth = featureDepth,
+featureArea = featureArea,
+featureSlope = featureSlope,
+continuum = SpecZoomCR$continuum,
+contiuumPolygon = SpecZoomCR$polygon,
+rawSpectrum = SpecZoomCR$wave)
+```
+
+```{r geotita1}
+# select reference mineral
+#data("mineralRef")  #reference spectra 
+str(mineralRef)
+
+ref <- as.data.frame(t(mineralRef$Geothite))
+colnames(ref) <- wavelength
+
+lower <- 457 # diagnostic wavelength range
+upper <- 563 # diagnostic wavelength range
+
+SpecZoom <- trimSpec(ref, 
+wavlimits = c(lower, upper)) # spectrum trimming
+
+SpecZoomCR <- HullCRR(spectra = SpecZoom, # continuum removal function
+wav = as.numeric(colnames(SpecZoom)),
+type = "R")
+
+waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find minimum
+
+Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+Sl <- SpecZoomCR$continuum[waveId] # calculate band depth
+
+featureDepth <- 1 - (Scr/Sl)
+featureArea <- splancs::areapl(SpecZoomCR$polygon) # calculate area of the polygon
+featureSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1] # calculate slope of the continuum
+
+geothita1summary <- list(name = "goethita1",
+wave = as.numeric(colnames(SpecZoom[1,])),
+CRspectra = SpecZoomCR$cHull,
+bandDepth = featureDepth,
+featureArea = featureArea,
+featureSlope = featureSlope,
+continuum = SpecZoomCR$continuum,
+contiuumPolygon = SpecZoomCR$polygon,
+rawSpectrum = SpecZoomCR$wave)
+```
+
+```{r geotita2}
+# select reference mineral
+#data("mineralRef")  #reference spectra 
+str(mineralRef)
+
+spectra <- as.data.frame(t(mineralRef$Geothite))
+colnames(spectra) <- wavelength
+
+lower <- 776 # diagnostic wavelength range
+upper <- 1266 # diagnostic wavelength range
+
+SpecZoom <- trimSpec(spectra, 
+wavlimits = c(lower, upper)) # spectrum trimming
+
+SpecZoomCR <- HullCRR(spectra = SpecZoom, # continuum removal function
+wav = as.numeric(colnames(SpecZoom)),
+type = "R")
+
+waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find minimum
+
+Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+Sl <- SpecZoomCR$continuum[waveId] # calculate band depth
+
+featureDepth <- 1 - (Scr/Sl)
+featureArea <- splancs::areapl(SpecZoomCR$polygon) # calculate area of the polygon
+featureSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1] # calculate slope of the continuum
+
+geothita2summary <- list(name = "goethita2",
+wave = as.numeric(colnames(SpecZoom[1,])),
+CRspectra = SpecZoomCR$cHull,
+bandDepth = featureDepth,
+featureArea = featureArea,
+featureSlope = featureSlope,
+continuum = SpecZoomCR$continuum,
+contiuumPolygon = SpecZoomCR$polygon,
+rawSpectrum = SpecZoomCR$wave)
+```
+
+```{r hematite1}
+# select reference mineral
+#data("mineralRef")  #reference spectra 
+str(mineralRef)
+
+spectra <- as.data.frame(t(mineralRef$hematite))
+colnames(spectra) <- wavelength
+
+lower <- 455 # diagnostic wavelength range
+upper <- 612 # diagnostic wavelength range
+
+SpecZoom <- trimSpec(spectra, 
+wavlimits = c(lower, upper)) # spectrum trimming
+
+SpecZoomCR <- HullCRR(spectra = SpecZoom, # continuum removal function
+wav = as.numeric(colnames(SpecZoom)),
+type = "R")
+
+waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find minimum
+
+Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+Sl <- SpecZoomCR$continuum[waveId] # calculate band depth
+
+featureDepth <- 1 - (Scr/Sl)
+featureArea <- splancs::areapl(SpecZoomCR$polygon) # calculate area of the polygon
+featureSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1] # calculate slope of the continuum
+
+hematite1summary <- list(name = "hematite1",
+wave = as.numeric(colnames(SpecZoom[1,])),
+CRspectra = SpecZoomCR$cHull,
+bandDepth = featureDepth,
+featureArea = featureArea,
+featureSlope = featureSlope,
+continuum = SpecZoomCR$continuum,
+contiuumPolygon = SpecZoomCR$polygon,
+rawSpectrum = SpecZoomCR$wave)
+```
+
+```{r hematite2}
+# select reference mineral
+#data("mineralRef")  #reference spectra 
+str(mineralRef)
+
+spectra <- as.data.frame(t(mineralRef$hematite))
+colnames(spectra) <- wavelength
+
+lower <- 765 # diagnostic wavelength range
+upper <- 1050 # diagnostic wavelength range
+
+SpecZoom <- trimSpec(spectra, 
+wavlimits = c(lower, upper)) # spectrum trimming
+
+SpecZoomCR <- HullCRR(spectra = SpecZoom, # continuum removal function
+wav = as.numeric(colnames(SpecZoom)),
+type = "R")
+
+waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find minimum
+
+Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+Sl <- SpecZoomCR$continuum[waveId] # calculate band depth
+
+featureDepth <- 1 - (Scr/Sl)
+featureArea <- splancs::areapl(SpecZoomCR$polygon) # calculate area of the polygon
+featureSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1] # calculate slope of the continuum
+
+hematite2summary <- list(name = "hematite2",
+wave = as.numeric(colnames(SpecZoom[1,])),
+CRspectra = SpecZoomCR$cHull,
+bandDepth = featureDepth,
+featureArea = featureArea,
+featureSlope = featureSlope,
+continuum = SpecZoomCR$continuum,
+contiuumPolygon = SpecZoomCR$polygon,
+rawSpectrum = SpecZoomCR$wave)
+```
+
+
+###### QUANTIFY MINERALS
+
+ Comparing Soil Spectra with Spectra of Reference Materials
+
+```{r import data}
+data <- read.csv("../data/data_soc_methods.csv", sep = ";")
+spectra <- data[,c(27:length(data))]
+
+oldNames <- grep("X", names(spectra), value = TRUE)
+wavelength <- as.numeric(substring(grep("X", names(spectra), value = T), 2, 20))
+colnames(spectra) <- wavelength
+```
+
+```{r kao}
+AbMineral1 <- data.frame(rKao=numeric())
+
+minSelect <- kaolin1141summary #reference material
+lower <- min(minSelect$wave) #region of Interest
+upper <- max(minSelect$wave)
+
+
+for (i in 1:nrow(spectra)) {
+ sample <- spectra[i,]
+ 
+      SpecZoom <- trimSpec(sample, wavlimits = c(lower, upper))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  sDepth <- 1 - (Scr/Sl) # calculate band depth
+  sArea <- splancs::areapl(SpecZoomCR$polygon)
+  sSlope <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  specFit <- as.numeric(cor(t(SpecZoomCR$cHull), t(minSelect$CRspectra))) # correlation
+  
+  rDepth <- as.numeric(sDepth/minSelect$bandDepth) # relative depth
+  rArea <- as.numeric(sArea/minSelect$featureArea) # relative area
+  
+  FitDepth <- specFit*rDepth # fit x relative depth
+  #AbMineral[i,1] <- specFit
+  AbMineral1[i,1] <- specFit*rDepth*rArea # fit x depth x area
+    }
+
+#View(indexes)
+#str(features)
+```
+
+```{r goe}
+AbMineral2 <- data.frame(rGoe=numeric())
+
+for (i in 1:nrow(spectra)) {
+ sample <- spectra[i,]
+ 
+      minSelect1 <- geothita1summary #reference material
+      lower1 <- min(minSelect1$wave) #region of Interest
+      upper1 <- max(minSelect1$wave)
+ 
+      SpecZoom <- trimSpec(sample, wavlimits = c(lower1, upper1))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  sDepth1 <- 1 - (Scr/Sl) # calculate band depth
+  sArea1 <- splancs::areapl(SpecZoomCR$polygon)
+  sSlope1 <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  specFit1 <- as.numeric(cor(t(SpecZoomCR$cHull), t(minSelect1$CRspectra))) # correlation
+  
+###
+      minSelect2 <- geothita2summary #reference material
+      lower2 <- min(minSelect2$wave) #region of Interest
+      upper2 <- max(minSelect2$wave)
+
+      SpecZoom <- trimSpec(sample, wavlimits = c(lower2, upper2))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  sDepth2 <- 1 - (Scr/Sl) # calculate band depth
+  sArea2 <- splancs::areapl(SpecZoomCR$polygon)
+  sSlope2 <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  specFit2 <- as.numeric(cor(t(SpecZoomCR$cHull), t(minSelect2$CRspectra))) # correlation
+  
+  ### quantification
+  
+  rDepth1 <- as.numeric(sDepth1/(sum(minSelect1$bandDepth + minSelect2$bandDepth))) # relative depth
+  rArea1 <- as.numeric(sArea1/(sum(minSelect1$featureArea + minSelect2$featureArea))) # relative area
+  
+  FitDepth1 <- specFit1*rDepth1 # fit x relative depth
+  Abund1 <- specFit1*rDepth1*rArea1 # fit x depth x area
+  
+  rDepth2 <- as.numeric(sDepth2/(sum(minSelect1$bandDepth + minSelect2$bandDepth)))  # relative depth
+  rArea2 <- as.numeric(sArea2/(sum(minSelect1$bandDepth + minSelect2$bandDepth)))  # relative area
+  
+  FitDepth2 <- specFit2*rDepth2 # fit x relative depth
+  Abund2 <- specFit2*rDepth2*rArea2 # fit x depth x area
+  
+  AbMineral2[i,1] <- Abund1 + Abund2 #sum
+  }
+  
+#View(indexes)
+#str(features)
+```
+
+```{r hem}
+AbMineral3 <- data.frame(rHem=numeric())
+
+for (i in 1:nrow(spectra)) {
+ sample <- spectra[i,]
+ 
+      minSelect1 <- hematite1summary #reference material
+      lower1 <- min(minSelect1$wave) #region of Interest
+      upper1 <- max(minSelect1$wave)
+ 
+      SpecZoom <- trimSpec(sample, wavlimits = c(lower1, upper1))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  sDepth1 <- 1 - (Scr/Sl) # calculate band depth
+  sArea1 <- splancs::areapl(SpecZoomCR$polygon)
+  sSlope1 <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  specFit1 <- as.numeric(cor(t(SpecZoomCR$cHull), t(minSelect1$CRspectra))) # correlation
+  
+  
+###
+      minSelect2 <- hematite2summary #reference material
+      lower2 <- min(minSelect2$wave) #region of Interest
+      upper2 <- max(minSelect2$wave)
+
+      SpecZoom <- trimSpec(sample, wavlimits = c(lower2, upper2))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  sDepth2 <- 1 - (Scr/Sl) # calculate band depth
+  sArea2 <- splancs::areapl(SpecZoomCR$polygon)
+  sSlope2 <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  specFit2 <- as.numeric(cor(t(SpecZoomCR$cHull), t(minSelect2$CRspectra))) # correlation
+  
+### quantification
+  
+  rDepth1 <- as.numeric(sDepth1/(sum(minSelect1$bandDepth + minSelect2$bandDepth))) # relative depth
+  rArea1 <- as.numeric(sArea1/(sum(minSelect1$featureArea + minSelect2$featureArea))) # relative area
+  
+  FitDepth1 <- specFit1*rDepth1 # fit x relative depth
+  Abund1 <- specFit1*rDepth1*rArea1 # fit x depth x area
+  
+  rDepth2 <- as.numeric(sDepth2/(sum(minSelect1$bandDepth + minSelect2$bandDepth)))  # relative depth
+  rArea2 <- as.numeric(sArea2/(sum(minSelect1$bandDepth + minSelect2$bandDepth)))  # relative area
+  
+  FitDepth2 <- specFit2*rDepth2 # fit x relative depth
+  Abund2 <- specFit2*rDepth2*rArea2 # fit x depth x area
+  
+  
+  AbMineral3[i,1] <- Abund1 + Abund2 #sum
+    }
+
+#View(indexes)
+#str(features)
+```
+
+```{r cbind}
+rAbundMineral <- cbind(AbMineral1, AbMineral2, AbMineral3)
+```
+
+## PRONTO
+# Demais indices
+
+```{r import data}
+data <- read.csv("../data/data_soc_methods.csv", sep = ";")
+spectra <- data[,c(27:length(data))]
+
+oldNames <- grep("X", names(spectra), value = TRUE)
+wavelength <- as.numeric(substring(grep("X", names(spectra), value = T), 2, 20))
+colnames(spectra) <- wavelength
+```
+
+```{r signals}
+dataSignals <- read.csv("../data/signals.csv", sep = ";")
+signals <- dataSignals[c("X","lower","upper")]
+water <- signals[c(10:17),]
+
+signals <- rbind(signals[c(22:nrow(signals)),], water)
+```
+
+```{r all}
+#features <- data.frame(Depth=numeric(), Area=numeric(), Slope = numeric())
+features <- data.frame(Area=numeric())
+index <- list()
+
+for (i in 1:nrow(signals)) {
+ signal <- signals[i,]
+ 
+    for (j in 1:nrow(spectra)) {
+    sample <- spectra[j,]
+    
+      SpecZoom <- trimSpec(sample, wavlimits = c(signal$lower, signal$upper))
+
+      SpecZoomCR <- HullCRR(spectra = SpecZoom, wav = as.numeric(colnames(SpecZoom)), type = "R")
+      waveId <- which(SpecZoomCR$cHull==min(SpecZoomCR$cHul))[1] # find wv minimum continuum-removed reflectance
+      Scr <- SpecZoomCR$rawSpec[waveId] # identify raw reflectance reading
+      Sl <- SpecZoomCR$continuum[waveId] # identify continuum reading
+      
+  #features[j,1] <- 1 - (Scr/Sl) # calculate band depth
+  features[j,1] <- splancs::areapl(SpecZoomCR$polygon)
+  #features[j,3] <- tail(SpecZoomCR$continuum, 1) - SpecZoomCR$continuum[1]
+  
+  tmp <- features
+  it <- i
+  #colnames(tmp)[1] <- paste(it, "Depth", sep="")
+  colnames(tmp)[1] <- paste(signal$X, it, sep="_")
+  #colnames(tmp)[3] <- paste(it, "Slope", sep="")
+    }
+ 
+ index[[i]] <- do.call(cbind, tmp)
+}
+indexs <- do.call(cbind, index)
+
+#View(indexes)
+#str(features)
+```
+
+
+# EXPORT
+```{r}
+index <-cbind(data[1:26], rAbundMineral, indexs)
+#write.csv(index, "../data/dataFinal.csv")
+```
