@@ -47,9 +47,6 @@ Font U.S. Geological Survey digital spectral library
 Mineral Diagnostic               wavelength range(s)/nm
 ----------------------------------------------------------
 Kaolinite                         2078–2267
-Smectite                          2118–2287
-Kaolinite-smectite 50-50 mixture  2128–2258
-Illite                            2155–2266, 2306–2385
 Goethite                          457–563, 776–1266
 Hematite                          455–612, 765–1050
 -----------------------------------------------------------
@@ -111,7 +108,7 @@ HullCRR <- function (spectra, type = c("R", "A"), wav, ...)
 ##### Prepare reference material
 
 ```{r imp Ref}
-mineralRef <- read.csv("../data/mineralRef.csv")
+mineralRef <- read.csv("data/mineralRef.csv")
 mineralRef <- mineralRef[c("wavelength", "Geothite", "hematite", "kaolinite_114")]
   
 # create a sequence of numbers to represent the wavelength
@@ -120,8 +117,6 @@ wavelength <- seq(350, 2500, by = 1)
 
 ```{r kaolinita}
 # select reference mineral
-str(mineralRef)
-
 ref <- as.data.frame(t(mineralRef$kaolinite_114))
 colnames(ref) <- wavelength
 
@@ -157,7 +152,6 @@ rawSpectrum = SpecZoomCR$wave)
 
 ```{r geotita1}
 # select reference mineral
-str(mineralRef)
 
 ref <- as.data.frame(t(mineralRef$Geothite))
 colnames(ref) <- wavelength
@@ -478,17 +472,8 @@ rAbundMineral <- cbind(AbMineral1, AbMineral2, AbMineral3)
 ## PRONTO
 # Demais indices
 
-```{r import data}
-data <- read.csv("../data/data_soc_methods.csv", sep = ";")
-spectra <- data[,c(27:length(data))]
-
-oldNames <- grep("X", names(spectra), value = TRUE)
-wavelength <- as.numeric(substring(grep("X", names(spectra), value = T), 2, 20))
-colnames(spectra) <- wavelength
-```
-
 ```{r signals}
-dataSignals <- read.csv("../data/signals.csv", sep = ";")
+dataSignals <- read.csv("data/signals.csv", sep = ";")
 signals <- dataSignals[c("X","lower","upper")]
 water <- signals[c(10:17),]
 
@@ -536,5 +521,5 @@ indexs <- do.call(cbind, index)
 # EXPORT
 ```{r}
 index <-cbind(data[1:26], rAbundMineral, indexs)
-#write.csv(index, "../data/dataFinal.csv")
+write.csv(index, "data/data.csv")
 ```
