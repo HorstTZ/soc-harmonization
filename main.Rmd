@@ -112,6 +112,60 @@ specOrg <- data[31:54]
 specWater <- data[55:length(data)]
 ```
 
+
+### Figure 2
+
+Empirical probability density of spectra features in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+
+```{r, eval = FALSE}
+
+l <- layer(
+  panel.mathdensity(
+    dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
+
+p1 <- histogram(
+  ~ rKao, data, 
+  xlab = expression('Relative abundance of Kaolinite'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "A)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p2 <- histogram(
+  ~ rGoe, data, 
+  xlab = expression('Relative abundance of Goethite'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "B)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+  
+
+p3 <- histogram(
+  ~ rHem, data, 
+  xlab = expression('Relative abundance of '), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "C)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+
+png("result/hist-relative-mineras.png")
+gridExtra::grid.arrange(p1, p2, p3,  ncol = 1)
+dev.off()
+```
+
 ```{r}
 data$Klevel <- cut(data$rKao, 
                    breaks=c(-Inf, 0.7, 1.4, Inf), 
