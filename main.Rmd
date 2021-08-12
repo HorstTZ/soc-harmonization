@@ -26,6 +26,8 @@ library(grid)
 library(gridGraphics)
 library(latticeExtra)
 library(lattice)
+library(dplyr)
+library(glue)
 ```
 
 
@@ -107,9 +109,9 @@ dev.off()
 #### Spectrais
 
 ```{r}
-specMinerals <- data[28:30]
-specOrg <- data[31:54]
-specWater <- data[55:length(data)]
+specMinAbund <- data[33:35]
+specOrg <- data[36:59]
+specOH <- data[65:67]
 ```
 
 
@@ -179,6 +181,7 @@ data$Hlevel <- cut(data$rHem,
                    breaks=c(-Inf, 0.4, 0.8, Inf), 
                    labels=c("Hlow","Hmed","Hhigh"))
 ```
+
 
 ### Figure 2
 
@@ -313,7 +316,8 @@ classified using FAO guidelines for soil description. The following codes are us
 
 WorldClim
 ```{r}
-l = list.files(path = '../data/raster/climate/select', pattern = glob2rx('*.tif'), full.names = TRUE)
+l = list.files(path = 'D:/Artigos/paper2/data/raster/climate/select', pattern = glob2rx('*.tif'), full.names = TRUE)
+
 l <- lapply(l, raster)
 lim = raster::stack(l)
 proj4string(lim) <- CRS("+proj=longlat +datum=WGS84")
@@ -428,7 +432,7 @@ http://www.macaulay.ac.uk/hypres/hypressoil.html.
 * ME = Medium (clay <350)
 
 ```{r}
-covar$texture <- cut(covar$clay, 
+data$texture <- cut(data$clay, 
                    breaks=c(-Inf, 350, 600, Inf), 
                    labels=c("ME","FN","VF"))
 ```
@@ -436,8 +440,8 @@ covar$texture <- cut(covar$clay,
 I create new categorical predictor variables using data on LULC (forest, agriculture, grazing) and soil texture (medium,fine, very fine). These are dummy variables composed of zeros and ones.
 
 ```{r}
-covar <-
-  covar %>%
+data <-
+  data %>%
   mutate(
     FS = ifelse(landuse == "FS", 1, 0),
     U =  ifelse(landuse == "U", 1, 0),
@@ -644,49 +648,12 @@ dev.off()
 
 ## Model formulation
 
-We test 22 model formulations, starting with predictor variables that are more readly available and ending with the most complex/expensive model. These are:
+We test 22 model formulations (hypothesis to be tested), starting with predictor variables that are more readly available and ending with the most complex/expensive model. These are:
 
 A. y ~ 0 + x
 B. y ~ 1 + x
+C. y ~ 1 + x + specOrg + specMinAbund + specOH + clay + texture + landuse + geology + coord
 
-C. y ~ 1 + x + SGDSb9
-D. y ~ 1 + x + SGDWb1
-E. y ~ 1 + x + SGDWb14
-F. y ~ 1 + x + CRRWb2
-G. y ~ 1 + x + CRRWb2
-H. y ~ 1 + x + SGDorg24s
-I. y ~ 1 + x + SGDclay2s
-J. y ~ 1 + x + SGDclay7s
-K. y ~ 1 + x + CRRorg16s
-L. y ~ 1 + x + CRRorg24s
-M. y ~ 1 + x + CRRclay7s
-N. y ~ 1 + x + RAWCOL25
-O. y ~ 1 + x + SGDNFODI
-P. y ~ 1 + x + CRRB
-
-Q. y ~ 1 + x + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2
-
-R. y ~ 1 + x + SGDorg24s + CRRorg16s + CRRorg24s
-
-S. y ~ 1 + x + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI
-
-T. y ~ 1 + x + RAWCOL25 + CRRB
-
-U. y ~ 1 + x + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB
-
-V. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay
-
-W. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture 
-
-X. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse
-
-Y. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse + geology
-
-Z. y ~ 1 + x + + SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB + clay + texture + landuse + geology + coord
-
-```{r}
-data <- cbind(id, soc, covar, dataindex[4:length(dataindex)])
-```
 
 ```{r}
 # Soil variables
@@ -697,12 +664,14 @@ soc_methods <- soc_methods[!soc_methods[, 1] == soc_methods[, 2], ]
 # Predictor variables
 
 #Spectral index highcorrelation
+#paste(names(specMinAbund), collapse = " + ")
+specMinAbund <- "rKao + rGoe + rHem"
 
-orgIndex <- "SGDorg24s + CRRorg16s + CRRorg24s"
-clayIndex <- "SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI"
-satIndex <- "SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2"
-corIndex <- "RAWCOL25 + CRRB"
-allIndex <-  "SGDSb9 + SGDWb1 + SGDWb14 + CRRWb2 + SGDorg24s + CRRorg16s + CRRorg24s + SGDclay2s + SGDclay7s + CRRclay7s + SGDNFODI + RAWCOL25 + CRRB"
+#paste(names(specOrg), collapse = " + ")
+specOrg <- "Organics_1 + Organics_2 + Organics_3 + Organics_4 + Organics_5 + Organics_6 + Organics_7 + Organics_8 + Organics_9 + Organics_10 + Organics_11 + Organics_12 + Organics_13 + Organics_14 + Organics_15 + Organics_16 + Organics_17 + Organics_18 + Organics_19 + Organics_20 + Organics_21 + Organics_22 + Organics_23 + Organics_24"
+
+#paste(names(specOH), collapse = " + ")
+specOH <- "Hydroxyl_30 + Hydroxyl_31 + Hydroxyl_32"
 
 landuse <- "FS + U + AA + HE"
 texture <- "ME + FI + VF"
@@ -718,31 +687,14 @@ formulas <- lapply(1:nrow(soc_methods), function (i) {
     glue("{y} ~ 0 + {x}"), # A
     glue("{y} ~ 1 + {x}"), # B
     glue("{y} ~ 1 + {x} + I({x}^2)"), # C
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDSb9"), # D
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDWb1"), # E
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDWb14"), # F   
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRWb2"), # G
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRWb2"), # H
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDorg24s"), # I
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDclay2s"), # J
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDclay7s"), # K
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRorg16s"), # L   
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRorg24s"), # M
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRclay7s"), # N
-    glue("{y} ~ 1 + {x} + I({x}^2) + RAWCOL25"), # O      
-    glue("{y} ~ 1 + {x} + I({x}^2) + SGDNFODI"),# P
-    glue("{y} ~ 1 + {x} + I({x}^2) + CRRB"),# Q
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specOH}"), #D
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specOH} + {specMinAbund}"), #E
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specOH} + {x}*clay"), #F
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specOH} + {x}*clay + {specMinAbund}"), #F
     
-    glue("{y} ~ 1 + {x} + I({x}^2) + {orgIndex}"), # R
-    glue("{y} ~ 1 + {x} + I({x}^2) + {clayIndex}"), # S      
-    glue("{y} ~ 1 + {x} + I({x}^2) + {satIndex}"),# T
-    glue("{y} ~ 1 + {x} + I({x}^2) + {corIndex}"),# U     
-    glue("{y} ~ 1 + {x} + I({x}^2) + {allIndex}"),# V
-    
-    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture}"), # W
-    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse}"), # X
-    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse} + {geology}"), # Y    
-    glue("{y} ~ 1 + {x}*clay + I({x}^2)*clay + {allIndex} + clay + {texture} + {landuse} + {coordinates}") # Z
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specMinAbund} + {specOH} + {x}*clay"), #G
+    glue("{y} ~ 1 + {x} + I({x}^2) + {specOrg} + {specMinAbund} + {specOH} + {x}*clay + I({x}^2)*clay + {texture} + {landuse} + {coordinates}"), #H
+    glue("{y} ~ 1 + {x} + I({x}^2) + {x}*clay + I({x}^2)*clay + {texture} + {landuse} + {coordinates}") #H
 )
 })
 names(formulas) <- sapply(formulas, function (x) x[[1]])
@@ -1045,6 +997,7 @@ for (i in 1:length(formulas)) {
   cross_validation[[i]] <- do.call(rbind, loocv)
 }
 cross_validation <- do.call(rbind, cross_validation)
+write.csv(cross_validation, "result/loocv.csv")
 ```
 
 Prediction bias of the most complex models.
