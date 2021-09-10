@@ -1,0 +1,27 @@
+---
+title: "clhs-samples"
+author: "Horst-Heinen"
+date: "09/09/2021"
+output: html_document
+---
+
+
+```{r}
+data <- read.csv("data/data.csv", sep = ",")
+besb <- read.csv("data/besb.csv", sep = ",")
+```
+
+```{r}
+install.packages("clhs")
+library(clhs)
+
+#Seleciona as amostras por CLHS; size ? o n?mero de amostras e iter ? a quantidade de itera??es
+ID <- clhs(data.frame(cbind(ELEV, SLOPE, ASPECT, NDVI)), size = 100, iter = 10000, simple = TRUE)
+
+#Une os ?ndices selecionados aos atributos dos pontos
+result <- merge(nome_da_sua_tabela_no_R, as.data.frame(ID), by = "ID")
+
+#Exporta a tabela contendo os pontos selecionados por CLHS
+write.table(result, sep = ",", dec=".", file = "CLHS.txt", row.names = FALSE)
+```
+
