@@ -12,9 +12,44 @@ output: html_document
 
 Experimental procedure to harmonize SOC data (DC, WCt, and WCc) from the southern Brazilian spectral library considering its geographic, topography, pedologic, and spectra data.
 
+Examining a soil spectrum, one can infer the presence or absence of specific properties. Clay minerals and iron oxides absorb at specific wavelengths in the vis-NIR-SWIR range of the electromagnetic spectrum.
+
+To avoid possible redundancies between correlated predictor variables, we select and compute features related to the spectrally-active area of minerals.
+
+The idea behind assessing and quantifying the mineral composition of soils with Vis-NIR spectroscopy is to compare the reflectance of the diagnostic wavelengths from a given reference spectrum with the reflectance at the same wavelengths of the soil samples. A repository of reference material with corresponding measured spectra is the U.S. Geological Survey digital spectral library.
+
+Although the relative abundance of those components is not a quantitative estimate of concentration themselves it might be useful to compare values between different samples. 
+
 ```{r}
 library(magrittr)
 ```
+
+# Plotting spectra
+```{r}
+
+data <- read.csv("data/data_covar.csv", sep = ";")
+spectra <- data[,c(32:length(data))]
+
+# take each column name from the spectra dataset
+oldNames <- grep("X", names(spectra), value = TRUE)
+# remove the "X" and make a numeric vector
+wavelength <- as.numeric(substring(grep("X", names(spectra), value = T), 2, 20))
+# change the name of the columns of the spectra
+colnames(spectra) <- wavelength
+# display the first ten column names
+colnames(spectra)[1:10]
+
+
+png("result/spectraAll.png")
+# plot example spectra
+matplot(x = colnames(spectra), y = t(spectra),
+xlab = "Wavelength /nm",
+ylab = "Reflectance",
+type = "l",
+lty = 1)
+dev.off()
+```
+
 
 # Feature Selection
 
