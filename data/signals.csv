@@ -1,4 +1,4 @@
-;Soil constituent;Fundamental (cm? 1);lower;Wav (nm);upper;mode
+;Soil constituent;Fundamental (cm? 1);lower;wav;upper;mode
 Fe oxides;Goethite1;;424;434;444;Electronic transitions
 Fe oxides;Goethite2;;470;480;490;Electronic transitions
 Fe oxides;Goethite3;;640;650;660;Electronic transitions
@@ -39,8 +39,8 @@ Organics;Amides1;?1 C?O 1640 cm? 1;2023;2033;2043;3?1
 Organics;Amides2;;1514;1524;1534;4?1
 Organics;Aliphatics1;?1 C–H 1465 cm? 1;2265;2275;2285;3?1
 Organics;Aliphatics2;;1696;1706;1716;4?1
-Organics;Methyls1;?1 C–H 1445–1350 cm? 1;2307;2307–2469;2469;3?1
-Organics;Methyls2;;1730;1730–1852;1852;4?1
+Organics;Methyls1;?1 C–H 1445–1350 cm? 1;2307;2388;2469;3?1
+Organics;Methyls2;;1730;1791;1852;4?1
 Organics;Phenolics1;?1 C–OH 1275 cm? 1;1951;1961;1971;4?1
 Organics;Polysaccharides1;?1 C–O 1170 cm? 1;2127;2137;2147;4?1
 Organics;Carbohydrates1;?1 C–O 1050 cm? 1;2371;2381;2391;4?1

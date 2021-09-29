@@ -1,0 +1,646 @@
+---
+title: "figures"
+author: "Horst-Heinen"
+date: "29/09/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# COVARIATES - FIGURES
+
+# IMPROVING DATA COMPATIBILITY ON SPECTRAL LIBRARIES: SOIL ORGANIC CARBON PEDOTRANSFER FUNCTIONS FOR SOUTHERN BRAZIL
+
+## Objetive
+
+Experimental procedure to harmonize SOC data (DC, WCt, and WCc) from the southern Brazilian spectral library considering its geographic, topography, pedologic, and spectra data.
+
+
+```{r}
+library(raster)
+library(sp)
+library(tidyr)
+library(magrittr)
+library(factoextra)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(gridGraphics)
+library(latticeExtra)
+library(lattice)
+library(dplyr)
+library(glue)
+```
+
+
+### Soil data
+The dataset is stored in the folder `data`.
+
+```{r}
+data <- read.csv("data/data.csv", sep = ";")
+```
+
+### Figure 1
+
+Empirical probability density of carbon (A, C, and E) acontent in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+Key characteristics of the soil samples and its site, such as the clay content (B), land use/land cover (D), and parental material (F).
+
+```{r, eval = FALSE}
+l <- layer(
+  panel.mathdensity(
+    dmath = dnorm, args = list(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)), col = 'black', lty = 'dashed'))
+
+p1 <- histogram(
+  ~ DC, data, 
+  xlab = expression('SOC, Dry combustion [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "a)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+p2 <- histogram(
+  ~ WCt, data, 
+  xlab = expression('SOC,  Wet digestion + colorimetry [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "b)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+  
+
+p3 <- histogram(
+  ~ WCc, data, 
+  xlab = expression('SOC, Wet digestion + titration [%]'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "c)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+
+png("result/chap03-hist-soc.png")
+gridExtra::grid.arrange(p1, p2, p3,  ncol = 2)
+dev.off()
+```
+
+### Covariates
+
+#### Spectrais
+
+```{r}
+specMinAbund <- data[33:35]
+specOrg <- data[36:59]
+```
+
+## ORGANIC FEATURES
+```{r}
+
+# plotara curva espectral e indicar as faixar das feições orgânicas
+```
+
+### Figure - HISTOGRAM MINERAL COMPOSITION
+
+Empirical probability density of spectra features in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+
+```{r, eval = FALSE}
+p1 <- histogram(
+  ~ rKao, data, 
+  xlab = expression('Relative abundance of Kaolinite'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "b)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p2 <- histogram(
+  ~ rGoe, data, 
+  xlab = expression('Relative abundance of Goethite'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "c)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+  
+
+p3 <- histogram(
+  ~ rHem, data, 
+  xlab = expression('Relative abundance of Hematite'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "d)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+
+p4 <- histogram(
+  ~ clay, data,
+  xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "a)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+png("result/hist-relative-mineras.png")
+gridExtra::grid.arrange(p4, p1, p2, p3, ncol = 2)
+dev.off()
+```
+
+```{r}
+data$Klevel <- cut(data$rKao, 
+                   breaks=c(-Inf, 0.7, 1.4, Inf), 
+                   labels=c("Klow","Kmed","Khigh"))
+
+data$Glevel <- cut(data$rGoe, 
+                   breaks=c(-Inf, 0.4, 0.8, Inf), 
+                   labels=c("Glow","Gmed","Ghigh"))
+
+data$Hlevel <- cut(data$rHem, 
+                   breaks=c(-Inf, 0.4, 0.8, Inf), 
+                   labels=c("Hlow","Hmed","Hhigh"))
+```
+
+
+### Figure 2
+
+Correlation chart
+
+```{r}
+png("result/corr-soc-px.png", width = 480 * 4, height = 480 * 4, res = 72 * 3)
+data %>% 
+  dplyr::select(DC, WCc, WCt, rKao, rGoe, rHem) %>%
+  psych::pairs.panels(method = "spearman", 
+                      bg=c("red","yellow","blue")[as.factor(data$local)],)
+
+dev.off()
+
+```
+
+#### Coordinates
+
+```{r}
+wgs84utm22s <- sp::CRS('+proj=utm +zone=22 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+sirgas2000 <- sp::CRS('+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs')
+#sp::spTransform(wgs84utm22s)
+coordinates(data) <- ~ coord_x + coord_y
+proj4string(data) <- CRS("+proj=longlat +datum=WGS84")
+```
+
+##### topogáfica
+
+```{r}
+p1 <- histogram(
+  ~ twi, data, 
+  xlab = expression('Topographic wetness index'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = " ", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+png("result/chap03-hist-twi.png")
+gridExtra::grid.arrange(p1, ncol = 1)
+dev.off()
+```
+
+
+### Land use and land cover (LULC)
+https://code.earthengine.google.com/?accept_repo=users/mapbiomas/user-toolkit 
+
+
+
+`land-use`
+classified using FAO guidelines for soil description. The following codes are used:
+
+* FS (Floresta): Semi-deciduous forest (vegetation slightly disturbed)
+* U (Vegetação secundária): Not used and not managed, vegetation strongly disturbed by clearing, burning,
+  ploughing (secondary vegetation, mix of semi-deciduous shrubs and tall grassland)
+* AA (Agricultura): Annual field cropping
+* FP (Silvicultura): Plantation forestry
+* HE (Campo nativo): Animal husbandry (extensive grazing)
+
+```{r}
+#MAPBIOMAS
+data$lulc <-  as.factor(data$lulc)
+
+p1 <- barchart(
+  data$lulc, xlab = 'Land cover', ylab = 'Percent of total', horizontal = FALSE, 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(h = -1, v = 0)
+    lattice::panel.barchart(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "a)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+p2 <- histogram(
+  ~ twi, data, 
+  xlab = expression('Topographic wetness index'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "b)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+png("result/chap03-hist-lulc-twi.png")
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+dev.off()
+```
+
+
+### Climate
+
+WorldClim
+```{r}
+l = list.files(path = 'D:/Artigos/paper2/data/raster/climate/select', pattern = glob2rx('*.tif'), full.names = TRUE)
+
+l <- lapply(l, raster)
+lim = raster::stack(l)
+proj4string(lim) <- CRS("+proj=longlat +datum=WGS84")
+```
+
+Empirical probability density of environmental covariates (A, C, and E) acontent in soil samples  according to the three analytical methods and the theoretical normal probability density function (dashed line).
+Key characteristics of the soil samples and its site, such as the clay content (B), land use/land cover (D), and parental material (F).
+
+```{r, eval = FALSE}
+
+p1 <- histogram(
+  ~ bio1c2, data, xlab = expression('Annual mean temperature (ºC)'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "a)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+
+p2 <- histogram(
+  ~ bio3c2, data, xlab = expression('Isothermality'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "b)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+p3 <- histogram(
+  ~ bio7c2, data, xlab = expression('Temperature annual range (ºC)'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "c)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) +
+  latticeExtra::layer(panel.abline(v = c(350, 600), lty = 'dotted'))
+
+
+p4 <- histogram(
+  ~ bio12c2, data, 
+  xlab = expression('Annual precipitation (mm)'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "d)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+  
+p5 <- histogram(
+  ~ bio15c2, data, 
+  xlab = expression('Precipitation Seasonality'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "e)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  }) + l
+
+
+
+
+png("result/chap03-hist-climate22.png")
+gridExtra::grid.arrange(p1, p2, p3, p4, p5, ncol = 2)
+dev.off()
+```
+
+
+classified using European Soil Map (HYPRES) guidelines for soil description. The following codes are used:
+http://www.macaulay.ac.uk/hypres/hypressoil.html.
+
+* VF = Very fine (clay >= 60)
+* FN = Fine (<600 clay >350)
+* ME = Medium (clay <350)
+
+```{r}
+data$texture <- cut(data$clay, 
+                   breaks=c(-Inf, 350, 600, Inf), 
+                   labels=c("ME","FN","VF"))
+```
+
+I create new categorical predictor variables using data on LULC (forest, agriculture, grazing) and soil texture (medium,fine, very fine). These are dummy variables composed of zeros and ones.
+
+```{r}
+data <-
+  data %>%
+  mutate(
+    FS = ifelse(landuse == "FS", 1, 0),
+    U =  ifelse(landuse == "U", 1, 0),
+    AA = ifelse(landuse == "AA", 1, 0),
+    FP = ifelse(landuse == "FP", 1, 0),   
+    HE = ifelse(landuse == "HE", 1, 0),
+    
+    AV = ifelse(geology == "AV", 1, 0),
+    BV = ifelse(geology == "BV", 1, 0),
+    SE = ifelse(geology == "SE", 1, 0),
+
+    ME = ifelse(texture == "ME", 1, 0),
+    FI = ifelse(texture == "FI", 1, 0),
+    VF = ifelse(texture == "VF", 1, 0))
+```
+
+#ALL COVARS
+```{r, eval = FALSE}
+p1 <- histogram(
+  ~ rKao, data, 
+  xlab = expression('Relative abundance of Kaolinite'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "b)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+p2 <- histogram(
+  ~ rGoe, data, 
+  xlab = expression('Relative abundance of Goethite'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "c)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+  
+
+p3 <- histogram(
+  ~ rHem, data, 
+  xlab = expression('Relative abundance of Hematite'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "d)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+
+p4 <- histogram(
+  ~ clay, data,
+  xlab = expression('Clay content, g kg'^'-1'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "a)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+png("result/hist-clay.png")
+gridExtra::grid.arrange(p4, p1, p2, p3, ncol = 2)
+dev.off()
+
+p5 <- histogram(
+  ~ bio1c2, data, xlab = expression('Annual mean temperature (ºC)'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "e)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+
+p6 <- histogram(
+  ~ bio3c2, data, xlab = expression('Isothermality'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "f)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+
+p7 <- histogram(
+  ~ bio7c2, data, xlab = expression('Temperature annual range (ºC)'), ylab = 'Percent of total', 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "g)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+
+p8 <- histogram(
+  ~ bio12c2, data, 
+  xlab = expression('Annual precipitation (mm)'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "h)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+  
+p9 <- histogram(
+  ~ bio15c2, data, 
+  xlab = expression('Precipitation Seasonality (Coefficient of Variation)'), col = 'lightgray', type = "percent", 
+  panel = function (...) {
+    panel.grid(v = -1, h = -1)
+    panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "i)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+png("result/hist-climate.png")
+gridExtra::grid.arrange(p5, p6, p7, p8, p9, ncol = 2)
+dev.off()
+
+
+data$lulc <- as.factor(data$lulc_mapbiomas)
+p10 <- barchart(
+  data$lulc_mapbiomas, xlab = 'Land cover', ylab = 'Percent of total', horizontal = FALSE, 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(h = -1, v = 0)
+    lattice::panel.barchart(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "j)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+p11 <- histogram(
+  ~ twi, data, 
+  xlab = expression('Topographic wetness index'), type = "percent", 
+  col = 'lightgray',
+  panel = function (...) {
+    lattice::panel.grid(v = -1, h = -1)
+    lattice::panel.histogram(...)
+    lattice::panel.rug(...)
+  },
+  page = function (n) {
+    grid::grid.text(label = "k)", x = grid::unit(0.04, "npc"), y = grid::unit(0.95, "npc"))
+  })
+
+png("result/hist-terrain.png")
+gridExtra::grid.arrange(p10, p11, ncol = 2)
+dev.off()
+```
+
+
+### Figure spectra
+
+```{r}
+data <- read.csv("data/data_soc_methods.csv", sep = ";")
+spectra <- data[,c(27:length(data))]
+signals <- read.csv("data/signals.csv", sep = ";")
+signalsmin <- read.csv("data/signals_min.csv", sep = ";")
+
+#####################################################
+ContRem <- prospectr::continuumRemoval(X = spectra, type = "R")
+CRR <- ContRem[,c(-1,-ncol(ContRem))]
+colnames(CRR)[1:2144] <- paste0("X", c(355:2498))
+
+#########################cálculo ds curvas médias e sd 
+####################
+geral.spectra <- CRR
+
+mean.geral <- apply(geral.spectra, 2 , FUN = mean) ##### mean 
+sd.geral   <- apply(geral.spectra, 2 , FUN = sd) ##### sd
+pos.sd.geral        <- -sd.geral ##### pos. and neg. std dev
+
+pos        <- (mean.geral + pos.sd.geral)
+neg        <- (mean.geral - pos.sd.geral)
+
+
+CR.pos.sd.table       <- rbind(mean.geral, pos, neg )
+
+CR.class.mean.pos.neg           <- (data.frame(t(CR.pos.sd.table)))
+colnames(CR.class.mean.pos.neg) <- c("Mean","Pos", "Neg")
+row.names(CR.class.mean.pos.neg)<- NULL
+
+CR.class.mean.pos.neg$band      <- seq(355,2498)
+
+geralCRR <- CR.class.mean.pos.neg
+
+#####################################################
+#########################SPECTRA CURVE
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+s1 <- ggplot2::ggplot(data = geralCRR) +
+  geom_ribbon(aes(ymin = Neg, ymax = Pos, x = band), alpha = 0.4, fill="gray") +
+  
+  geom_line(aes(x = band, y = Mean), color="black", size = 1, lty =1) +
+  geom_vline(xintercept = as.numeric(signals$wav), size = 1, colour = "darkgreen", alpha = .2) +
+  
+  annotate("rect", xmin = 2078, xmax = 2267, ymin = 0, ymax = 1, fill = "darkgoldenrod", alpha = .2, color = NA) +
+
+  annotate("rect", xmin = 457, xmax = 563, ymin = 0, ymax = 1, fill = "blue", alpha = .2, color = NA) +
+  
+  annotate("rect", xmin = 776, xmax = 1266, ymin = 0, ymax = 1, fill = "blue", alpha = .2, color = NA) +
+  
+    annotate("rect", xmin = 455, xmax = 612, ymin = 0, ymax = 1, fill = "brown3", alpha = .2, color = NA) +
+  
+  annotate("rect", xmin = 765, xmax = 1050, ymin = 0, ymax = 1, fill = "brown3", alpha = .2, color = NA) +
+
+
+  scale_x_continuous("Wavelength (nm)", limits = c(355,2500)) +
+    
+  scale_y_continuous("CRR reflectance (nm)") +
+  theme_bw() +
+   #facet_grid(rows = vars("CRR")) +
+    theme(strip.text.y = element_text(size=12, color="black",
+                                      face="bold"))
+
+
+png("result/chap03-spectra.png")
+s1
+dev.off()
+```
+
